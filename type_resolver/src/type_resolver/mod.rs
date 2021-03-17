@@ -18,10 +18,6 @@ pub type RawType = Vec<String>;
 pub type VarTypes = HashMap<Name, Type>;
 
 // --- Expression Types ---
-#[derive(Debug, PartialEq)]
-pub struct AtomExpr {
-    name : Name
-}
 
 #[derive(Debug, PartialEq)]
 pub struct FuncApply {
@@ -36,8 +32,9 @@ pub struct ParentExpression {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    Atom(AtomExpr),
-    Apply(Box<FuncApply>)
+    Atom(Name),
+    Apply(Box<FuncApply>),
+    ParExpr(Box<Expr>)
 }
 
 // --- Type types ---
@@ -63,7 +60,7 @@ pub enum Type {
     Const(ConstType),      // T
     Var(VarType),          // t
     Func(Box<Function>),   // a -> b
-    ParType(Box<Type>)              // (a)
+    ParType(Box<Type>)     // (a)
 }
 
 // --- Wrapper Type ---
@@ -94,15 +91,83 @@ impl TypeManager {
             .entry(typename.clone())
             .or_insert(my_type) = my_type.clone();
     }
-
-    pub fn add_atm_expr(&mut self, name : Name, typename : Type) -> Result<(), TypeError> {
-        unimplemented!()
-    }
 }
 
 impl Expr {
-    pub fn new(manager : &TypeManager, expr : RawExpr) -> Result<Expr, TypeError> {
-        unimplemented!()
+    pub fn new(expr : RawExpr) -> Result<Expr, TypeError> {
+
+        // build token stream
+        let expr : Vec<tokenizer::Token> = expr.iter().map(tokenizer::Token::new).collect();
+
+        if expr.len() == 0 {
+            return Err(TypeError::InvalidSyntax)
+        }
+
+        Expr::parse_expr_helper(&expr, 0,expr.len() - 1)
+    }
+
+    fn parse_expr_helper(tokens : &Vec<tokenizer::Token>, lo : usize, hi : usize) -> Result<Expr, TypeError> {
+         // check consistent syntax
+         if tokens.len() == 0  || lo > hi{
+            panic!("Should not be parsing 0-length expression")
+        }
+
+        let mut hi = hi;
+
+        // Try to get first expression
+        let r_val = match &tokens[hi] {
+
+            tokenizer::Token::ParOpen => {
+                // If parenthesis expression, then 
+                let last_pos = Expr::find_openning_par(tokens, lo, hi)?;
+
+                // compute expression
+                let new_expr = Expr::parse_expr_helper(tokens, lo+1, last_pos-1)?;
+
+                // move next token one to left
+                hi = last_pos - 1;
+
+                Expr::ParExpr(Box::new(new_expr)) 
+            },
+
+            tokenizer::Token::Id(name) => { hi -= 1; Expr::Atom(name.clone()) },
+
+            _ => return Err(TypeError::InvalidSyntax)
+        };
+
+        // eveything done
+        if lo > hi {
+            return Ok(r_val)
+        }
+
+        // Parse left argument of function application
+        let l_val = Expr::parse_expr_helper(tokens, lo, hi)?;
+
+        // create function to return 
+        let f = FuncApply{function : l_val, arg : r_val};
+
+        Ok( Expr::Apply( Box::new(f) ) )
+    }
+
+    /// Find position of openning parenthesis that matches the one in position "end_position",
+    /// up to position "start_pos"
+    fn find_openning_par(tokens : &Vec<tokenizer::Token>,start_pos : usize, end_pos : usize) -> Result<usize, TypeError> {
+
+        let mut parity = 0;
+
+        for i in (start_pos..end_pos+1).rev() {
+            match &tokens[i] {
+                tokenizer::Token::ParClosed => parity += 1,
+                tokenizer::Token::ParOpen   => parity -=1,
+                _                           => {} 
+            };
+
+            if parity == 0 {
+                return Ok(i)
+            }
+        };
+
+        Err(TypeError::InvalidSyntax)
     }
 }
 
@@ -115,21 +180,32 @@ impl Type {
     /// ## Return
     /// A type if succesfull parsing, an error otherwise
     pub fn new(rawtype : RawType) -> Result<Type, TypeError> {
-        let to_parse = rawtype.join(" ");
-        let tokens = tokenizer::Tokenizer::new(to_parse).collect();
+
+        let tokens : Vec<tokenizer::Token> = rawtype.iter().map(tokenizer::Token::new).collect();
+
+        if tokens.len() == 0 {
+            return Err(TypeError::InvalidSyntax)
+        }
 
         Type::parse_type_helper(&tokens, 0, tokens.len() - 1)
     }
 
+    /// Print a human-readable representation of this Type object
     pub fn display(&self) -> String {
-        format!("{:?}", self)
+        match self {
+            Type::Const(s)   => format!(" {} ", s.name),
+            Type::Var(s)     => format!(" {} ", s.name),
+            Type::ParType(s) => format!("({})", s.display()),
+            Type::Func(f)    => format!("{} -> {}", f.l_type.display(), f.r_type.display())
+        }
     }
 
-
+    /// Utility function to parse expresion from a list of tokens, considering only
+    /// tokens in range [lo, hi]
     fn parse_type_helper(tokens : &Vec<tokenizer::Token>, lo : usize, hi : usize) -> Result<Type, TypeError> {
         // check consistent syntax
         if tokens.len() == 0  || lo > hi{
-            panic!("Should not be parsing 0-length expression")
+            return Err(TypeError::InvalidSyntax)
         }
 
         let mut lo = lo;
@@ -138,7 +214,7 @@ impl Type {
         let l_val = match &tokens[lo] {
             tokenizer::Token::ParOpen => {
                 // If parenthesis expression, then 
-                let last_pos = Type::find_closing_par(tokens, lo)?;
+                let last_pos = Type::find_closing_par(tokens, lo, hi)?;
 
                 // compute expression
                 let new_type = Type::parse_type_helper(tokens, lo+1, last_pos-1)?;
@@ -172,10 +248,12 @@ impl Type {
         }
     }
 
-    fn find_closing_par(tokens : &Vec<tokenizer::Token>, start_par_pos : usize) -> Result<usize, TypeError> {
+    /// Find closing parenthesis that matches the one in position "start_pos" up to position "end_pos"
+    fn find_closing_par(tokens : &Vec<tokenizer::Token>, start_pos : usize, end_pos : usize) -> Result<usize, TypeError> {
+        
         let mut parity_counter = 0;
 
-        for i in start_par_pos..tokens.len(){
+        for i in start_pos..end_pos+1{
             match tokens[i] {
                 tokenizer::Token::ParOpen   => parity_counter += 1,
                 tokenizer::Token::ParClosed => parity_counter -= 1,
@@ -190,6 +268,7 @@ impl Type {
         Err(TypeError::InvalidSyntax)
     }
 
+    /// utility function to create an atomic type, could be variant or constant
     fn create_atm_type(name : String) -> Type {
         let c = name.chars().next().unwrap();
 

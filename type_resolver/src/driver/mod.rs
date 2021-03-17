@@ -101,17 +101,14 @@ impl Program {
 		// if everything went ok, print it, otherwise just return the error
 		self.manager.add_type(&name, actual_type);
 		println!("añadido '{}' con tipo {}", name, display);
-		
+
 		Ok(())
 	}
 
 	/// perform a "type" operation, printing the actual type for this expression if any
 	fn do_type(&mut self, rawexpr : RawExpr) -> Result<(), TypeError> {
 		
-		let expr  = match Expr::new(&self.manager, rawexpr){
-		Err(e) => return Err(e),
-		Ok(t)  => t
-		};
+		let expr  = Expr::new(rawexpr)?;
 
 		// get type for this expression and then print it if correct
 		self.manager.get_type(&expr)
@@ -120,7 +117,13 @@ impl Program {
 
 	/// Get next action from user input
 	fn parse(input: String) -> Result<Action, ProgramError>{
+
+		// replace substrings for cpu friendly ones
+		let input = input.replace( "(", " ( ");
+		let input = input.replace( ")", " ) ");
+		let input = input.replace( "->", " -> ");
 		let mut input = input.split_whitespace();
+
 
 		// Try to Parse verb from input
 		let action = match input.next() {

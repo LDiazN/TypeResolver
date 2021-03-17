@@ -7,6 +7,7 @@ fn main() {
 
     println!("Bienvenido no a ghci, sino al resolvedor de tipos\n\n");
 
+    
     while program.should_run() {
         program.run()
     }
