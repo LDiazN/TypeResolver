@@ -23,6 +23,7 @@ pub enum Action {
 }
 
 /// Possible parsing or input errors
+#[derive(Debug)]
 pub enum ProgramError {
     NotEnoughArgs,
     InvalidAction(String)
@@ -109,7 +110,7 @@ impl Program {
 	fn do_type(&mut self, rawexpr : RawExpr) -> Result<(), TypeError> {
 		
 		let expr  = Expr::new(rawexpr)?;
-
+		
 		// get type for this expression and then print it if correct
 		self.manager.get_type(&expr)
 					.and_then( |t| { println!("{}", t.display()); Ok(()) } )
@@ -179,6 +180,6 @@ impl Program {
 
 impl ProgramError {
 	pub fn display(&self) -> String {
-		unimplemented!()
+		format!("{:?}", self)
 	} 
 }
