@@ -148,7 +148,7 @@ impl TypeManager {
         // get variable names in every substitution, those are unallowed too
         let substs_bound_vars = bindings
                                     .values()
-                                    .map(|t| t.collect_bound_variables())
+                                    .map(Type::collect_bound_variables)
                                     .flatten();
                                     
         // Add variables that should be unallowed names
