@@ -51,11 +51,12 @@ impl NameGenerator {
     /// Return a valid string that is sure to be valid,
     /// generated from an initial string
     pub fn valid_name(&self, name : &String) -> String {
+        let original_name = name.clone();
         let mut possible_name = name.clone();
         let mut counter = 0;
 
         while self.stored_names.contains(&possible_name) {
-            possible_name = format!("{}{}", possible_name, counter);
+            possible_name = format!("{}{}", original_name, counter);
             counter+=1
         }
 

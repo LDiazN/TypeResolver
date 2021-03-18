@@ -139,14 +139,22 @@ impl TypeManager {
         let dummy_vars : Vec<Name> = bindings.keys().map(|s| s.clone()).collect();
 
         // Get variables whose name should be changed before replace
-        let vars_to_change : Vec<String> = lr_bound_vars
-                                .iter()
-                                .filter(|s| !dummy_vars.contains(s))
-                                .map(|s| s.clone())
-                                .collect();
+        let mut vars_to_change : Vec<String> = lr_bound_vars
+                                                    .iter()
+                                                    .filter(|s| !dummy_vars.contains(s))
+                                                    .map(|s| s.clone())
+                                                    .collect();
 
+        // get variable names in every substitution, those are unallowed too
+        let substs_bound_vars = bindings
+                                    .values()
+                                    .map(|t| t.collect_bound_variables())
+                                    .flatten();
+                                    
+        // Add variables that should be unallowed names
+        vars_to_change.extend(substs_bound_vars);
 
-        // Create a new name generator
+        // Create a new name generator from unallowed names
         let name_gen = NameGenerator::new(vars_to_change);
 
         // refresh lr_type before actually performing the change
