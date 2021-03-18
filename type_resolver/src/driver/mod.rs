@@ -110,7 +110,7 @@ impl Program {
 	fn do_type(&mut self, rawexpr : RawExpr) -> Result<(), TypeError> {
 		
 		let expr  = Expr::new(rawexpr)?;
-		
+
 		// get type for this expression and then print it if correct
 		self.manager.get_type(&expr)
 					.and_then( |t| { println!("{}", t.display()); Ok(()) } )
@@ -160,7 +160,7 @@ impl Program {
 		Ok(Action::Def(name, types))
 	}
 
-	/// Parse properties from token iterator and create a new definition action
+	/// Parse properties from token iterator and create a new-definition action
 	fn parse_type<'a, I>(input:  I) -> Result<Action, ProgramError> 
 	where 
 		I: Iterator<Item=&'a str>
@@ -179,7 +179,11 @@ impl Program {
 }
 
 impl ProgramError {
+	/// Return an human-readable representation for this error
 	pub fn display(&self) -> String {
-		format!("{:?}", self)
+		match self {
+			ProgramError::InvalidAction(s)  => format!("Esta acción no es válida: {}", s),
+			ProgramError::NotEnoughArgs		=> format!("Faltan argumentos")
+		}
 	} 
 }
